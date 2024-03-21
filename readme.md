@@ -22,3 +22,8 @@ an example to auto add list item
 
 ## usage
 * `:lua require'buds'.attach(vim.api.nvim_get_current_bufnr())`
+
+---
+
+红豆生南国，春来发几枝。
+愿君多采撷，此物最相思。
