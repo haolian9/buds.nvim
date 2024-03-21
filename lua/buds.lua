@@ -1,13 +1,17 @@
 ---design
 ---* keep the logic minimal
----* only supports i_cr
+---* only support i_cr
 ---
 ---known wontfix issues
----* not work on: p, o, O
+---* not work with: p, o, O
 ---* not support multi-line list item
 ---* `<cr><cr>` will remove the trailing space from the previous line,
 ---  which is caused by &autoindent, actually i'd treat it as a feature
 ---* `<cr><cr>` will not remove the previously inserted `*` line
+---
+---todo
+---* avoid copying lines: vim.regex([[\v^\s*([*-]|\d+\.) ]]):match_line()
+---* remap i_cr could lead to a much simpler impl
 
 local M = {}
 
@@ -20,13 +24,32 @@ local api = vim.api
 local bufwatcher = {}
 do
   ---@private
-  ---@type {[integer]: true} @integer
-  bufwatcher.attached_bufs = {}
+  ---@type {[integer]: true} @{bufnr}
+  bufwatcher.running = {}
+  ---@private
+  ---@type {[integer]: true} @{bufnr}
+  bufwatcher.cancelled = {}
 
-  function bufwatcher:is_attached(bufnr) return self.attached_bufs[bufnr] == true end
-  function bufwatcher:mark_attached(bufnr) self.attached_bufs[bufnr] = true end
-  function bufwatcher:cancelled(bufnr) return self.attached_bufs[bufnr] == nil end
-  function bufwatcher:mark_cancelled(bufnr) self.attached_bufs[bufnr] = nil end
+  function bufwatcher:is_attached(bufnr) return self.running[bufnr] == true or self.cancelled[bufnr] == true end
+
+  function bufwatcher:mark_attached(bufnr)
+    assert(self.cancelled[bufnr] == nil, "attach to a being cancelled buf")
+    self.running[bufnr] = true
+  end
+
+  function bufwatcher:is_cancelled(bufnr) return self.running[bufnr] == true and self.cancelled[bufnr] == true end
+
+  function bufwatcher:mark_cancelled(bufnr)
+    assert(self.running[bufnr] == true, "cancel an unattached buf")
+    self.cancelled[bufnr] = true
+  end
+
+  function bufwatcher:mark_detached(bufnr)
+    assert(self.running[bufnr] == true)
+    assert(self.cancelled[bufnr] == true)
+    self.running[bufnr] = nil
+    self.cancelled[bufnr] = nil
+  end
 end
 
 local filetype_spec = {}
@@ -53,7 +76,6 @@ end
 function M.attach(bufnr)
   assert(bufnr ~= 0)
 
-  --todo: there could be a race condition between mark_attached and cancel
   if bufwatcher:is_attached(bufnr) then return end
   bufwatcher:mark_attached(bufnr)
 
@@ -72,7 +94,10 @@ function M.attach(bufnr)
         abcd: 2, 3, 3
       --]]
 
-      if bufwatcher:cancelled(bufnr) then return true end
+      if bufwatcher:is_cancelled(bufnr) then
+        bufwatcher:mark_detached(bufnr)
+        return true
+      end
 
       --the data seems to be produced by i_cr
       if not (old_last - first_line == 1 and new_last - old_last == 1) then return end
@@ -126,7 +151,7 @@ end
 
 function M.detach(bufnr)
   assert(bufnr ~= 0)
-  bufwatcher.mark_cancelled(bufnr)
+  bufwatcher:mark_cancelled(bufnr)
 end
 
 return M
