@@ -23,6 +23,25 @@ an example to auto add list item
 ## usage
 * `:lua require'buds'.attach(vim.api.nvim_get_current_bufnr())`
 
+my personal config:
+```
+do -- requires haolian9/cmds.nvim
+  local spell = cmds.Spell("Buds", function(args)
+    local buds = require("buds")
+    local bufnr = api.nvim_get_current_buf()
+    if args.op == "attach" then
+      buds.attach(bufnr)
+    elseif args.op == "detach" then
+      buds.detach(bufnr)
+    else
+      error("unreachable")
+    end
+  end)
+  spell:add_arg("op", "string", true, nil, cmds.ArgComp.constant({ "attach", "detach" }))
+  cmds.cast(spell)
+end
+```
+
 ---
 
 红豆生南国，春来发几枝。
