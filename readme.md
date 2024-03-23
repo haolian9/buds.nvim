@@ -4,6 +4,7 @@ an example to auto add list item
 ## design
 * keep the logic minimal
 * only supports i_cr
+* refuse to work with over long (4096) lines
 
 ## known wontfix issues
 * not work with: p, o, O
