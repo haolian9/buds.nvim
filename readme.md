@@ -5,7 +5,6 @@ https://github.com/haolian9/zongzi/assets/6236829/455472be-e3eb-43dc-9183-ee1cee
 ## design
 * keep the logic minimal
 * only supports i_cr
-* refuse to work with over long (4096) lines
 
 ## known wontfix issues
 * not work with: p, o, O

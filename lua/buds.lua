@@ -1,7 +1,6 @@
 ---design
 ---* keep the logic minimal
 ---* only support i_cr
----* refuse to work with over long (4096) lines
 ---
 ---known facts
 ---* :bd and :bw will remove all the attached callback of nvim_buf_attach of the buffer
@@ -15,17 +14,13 @@
 ---* `<cr><cr>` will not remove the previously inserted `*` line
 ---
 ---todo
----* avoid copying lines: vim.regex([[\v^\s*([*-]|\d+\.) ]]):match_line()
----  especially for a long long line
 ---* remap i_cr could lead to a much simpler impl
 
 local M = {}
 
 local ctx = require("infra.ctx")
-local fn = require("infra.fn")
 local jelly = require("infra.jellyfish")("buds", "info")
 local prefer = require("infra.prefer")
-local unsafe = require("infra.unsafe")
 
 local api = vim.api
 
@@ -60,15 +55,38 @@ do
   end
 end
 
-local filetype_spec = {}
+local try_unordered, try_ordered, try_ftspec
 do
-  ---@alias FiletypeSpec fun(prevline: string): nil|string
+  ---@alias Try fun(prevline: string): nil|string
 
-  ---@type FiletypeSpec
-  function filetype_spec.lua(prevline)
-    do --'---* abc', '-- * abc'
-      local prefix = string.match(prevline, "^%s*--[ -]%* ")
-      if prefix ~= nil then return prefix end
+  ---for '* ', '- '
+  ---@type Try
+  function try_unordered(prevline)
+    local prefix = string.match(prevline, "^%s*[*-] ")
+    if prefix == nil then return end
+    jelly.debug("new unordered: %s", prefix)
+    return prefix
+  end
+
+  ---for '1. '
+  ---@type Try
+  function try_ordered(prevline)
+    local prefix, no = string.match(prevline, "^(%s*(%d+)%. )")
+    if not (prefix and no) then return end
+    local next_no = tostring(assert(tonumber(no)) + 1)
+    prefix = string.gsub(prefix, no, next_no)
+    jelly.debug("new ordered: %s", prefix)
+    return prefix
+  end
+
+  do
+    try_ftspec = {}
+    ---@type Try
+    function try_ftspec.lua(prevline)
+      do --'---* abc', '-- * abc'
+        local prefix = string.match(prevline, "^%s*--[ -]%* ")
+        if prefix ~= nil then return prefix end
+      end
     end
   end
 end
@@ -81,24 +99,14 @@ local function is_blank(str)
 end
 
 ---@param bufnr integer
----@param start_lnum integer @0-based, inclusive
----@param stop_lnum integer @0-based, exclusive
----@return integer?,integer? @nil or (lnum,len)
-local function find_over_long_line(bufnr, start_lnum, stop_lnum)
-  local llens = unsafe.lineslen(bufnr, fn.range(start_lnum, stop_lnum))
-  for lnum, len in pairs(llens) do
-    if len > 4096 then return lnum, len end
-  end
-end
-
----@param bufnr integer
 function M.attach(bufnr)
   assert(bufnr ~= 0)
 
   if bufwatcher:is_attached(bufnr) then return end
   bufwatcher:mark_attached(bufnr)
 
-  local ftspec = filetype_spec[prefer.bo(bufnr, "filetype")]
+  --NB: order matters
+  local tries = { try_unordered, try_ordered, try_ftspec[prefer.bo(bufnr, "filetype")] }
 
   api.nvim_buf_attach(bufnr, false, {
     on_lines = function(_, _, _, first_line, old_last, new_last)
@@ -122,47 +130,19 @@ function M.attach(bufnr)
       if not (old_last - first_line == 1 and new_last - old_last == 1) then return end
       assert(new_last ~= 1)
 
-      do
-        local lnum, len = find_over_long_line(bufnr, first_line, new_last)
-        if lnum and len then return jelly.warn("line#%d is over long (%d), refuse to continue", lnum, len) end
-      end
-
-      local prevline
-      do
-        local lines = api.nvim_buf_get_lines(bufnr, first_line, new_last, false)
-        if #lines ~= 2 then return jelly.debug("#lines!=2; %s", lines) end
-        local l0, l1 = unpack(lines)
-        if is_blank(l0) then return jelly.debug("l0 is blank: '%s'", l0) end
-        if not is_blank(l1) then return jelly.warn("l1 isnt blank: '%s'", l1) end
-        assert(l0 ~= l1)
-
-        prevline = l0
-      end
+      --only takes first 64 chars from prevline, which should just be enough
+      local prevline = api.nvim_buf_get_text(bufnr, first_line, 0, first_line, 64, {})[1]
+      if is_blank(prevline) then return jelly.debug("prevline is blank") end
+      --todo: check if the current line has been modified by other plugins already
 
       local newline
-
-      do -- '* ', '- '
-        local prefix = string.match(prevline, "^%s*[*-] ")
-        if prefix then
-          jelly.debug("new unordered: %s", prefix)
-          newline = prefix
+      for idx, try in ipairs(tries) do
+        newline = try(prevline)
+        if newline ~= nil then
+          jelly.debug("try#%d wins", idx)
+          break
         end
       end
-
-      do -- '1. '
-        local prefix, no = string.match(prevline, "^(%s*(%d+)%. )")
-        if prefix and no then
-          local next_no = tostring(assert(tonumber(no)) + 1)
-          newline = string.gsub(prefix, no, next_no)
-          jelly.debug("new ordered: %s", prefix)
-        end
-      end
-
-      if ftspec then
-        jelly.debug("ftspec is honored")
-        newline = ftspec(prevline)
-      end
-
       if newline == nil then return jelly.debug("nothing to do: %s", prevline) end
 
       vim.schedule(function()
