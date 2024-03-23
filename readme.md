@@ -1,5 +1,6 @@
 an example to auto add list item
 
+https://github.com/haolian9/zongzi/assets/6236829/455472be-e3eb-43dc-9183-ee1cee0de083
 
 ## design
 * keep the logic minimal
