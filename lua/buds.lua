@@ -102,7 +102,7 @@ function M.attach(bufnr)
 
   api.nvim_buf_attach(bufnr, false, {
     on_lines = function(_, _, _, first_line, old_last, new_last)
-      --[[ sample first_line, old_last, new_line
+      --[[ sample first_line, old_last, new_last
         yy2p: 4, 4, 6
         d2k:  1, 4, 1
         dk:   3, 5, 3
@@ -178,7 +178,7 @@ function M.detach(bufnr)
   if api.nvim_buf_is_valid(bufnr) then
     bufwatcher:mark_cancelled(bufnr)
   else
-    bufwatcher:mark_attached(bufnr)
+    bufwatcher:mark_detached(bufnr)
   end
 end
 
