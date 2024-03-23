@@ -1,6 +1,11 @@
 ---design
 ---* keep the logic minimal
 ---* only support i_cr
+---* refuse to work with over long (4096) lines
+---
+---known facts
+---* :bd and :bw will remove all the attached callback of nvim_buf_attach of the buffer
+---* nvim generate bufnr in an auto_increment way, so old bufnr will not be used once it's been wiped out
 ---
 ---known wontfix issues
 ---* not work with: p, o, O
@@ -11,13 +16,16 @@
 ---
 ---todo
 ---* avoid copying lines: vim.regex([[\v^\s*([*-]|\d+\.) ]]):match_line()
+---  especially for a long long line
 ---* remap i_cr could lead to a much simpler impl
 
 local M = {}
 
 local ctx = require("infra.ctx")
+local fn = require("infra.fn")
 local jelly = require("infra.jellyfish")("buds", "info")
 local prefer = require("infra.prefer")
+local unsafe = require("infra.unsafe")
 
 local api = vim.api
 
@@ -73,6 +81,17 @@ local function is_blank(str)
 end
 
 ---@param bufnr integer
+---@param start_lnum integer @0-based, inclusive
+---@param stop_lnum integer @0-based, exclusive
+---@return integer?,integer? @nil or (lnum,len)
+local function find_over_long_line(bufnr, start_lnum, stop_lnum)
+  local llens = unsafe.lineslen(bufnr, fn.range(start_lnum, stop_lnum))
+  for lnum, len in pairs(llens) do
+    if len > 4096 then return lnum, len end
+  end
+end
+
+---@param bufnr integer
 function M.attach(bufnr)
   assert(bufnr ~= 0)
 
@@ -102,6 +121,11 @@ function M.attach(bufnr)
       --the data seems to be produced by i_cr
       if not (old_last - first_line == 1 and new_last - old_last == 1) then return end
       assert(new_last ~= 1)
+
+      do
+        local lnum, len = find_over_long_line(bufnr, first_line, new_last)
+        if lnum and len then return jelly.warn("line#%d is over long (%d), refuse to continue", lnum, len) end
+      end
 
       local prevline
       do
@@ -151,7 +175,11 @@ end
 
 function M.detach(bufnr)
   assert(bufnr ~= 0)
-  bufwatcher:mark_cancelled(bufnr)
+  if api.nvim_buf_is_valid(bufnr) then
+    bufwatcher:mark_cancelled(bufnr)
+  else
+    bufwatcher:mark_attached(bufnr)
+  end
 end
 
 return M
