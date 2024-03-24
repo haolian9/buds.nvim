@@ -146,8 +146,17 @@ function M.attach(bufnr)
       if newline == nil then return jelly.debug("nothing to do: %s", prevline) end
 
       vim.schedule(function()
-        ctx.undoblock(bufnr, function() api.nvim_buf_set_lines(bufnr, new_last - 1, new_last, false, { newline }) end)
-        api.nvim_win_set_cursor(0, { new_last, #newline })
+        local winid = api.nvim_get_current_win()
+        local cursor = api.nvim_win_get_cursor(winid)
+        assert(new_last == cursor[1])
+
+        ctx.undoblock(bufnr, function()
+          --for '- a<cr>b', just replace the text before cursor
+          local lnum, col = cursor[1] - 1, cursor[2]
+          api.nvim_buf_set_text(bufnr, lnum, 0, lnum, col, { newline })
+        end)
+
+        api.nvim_win_set_cursor(winid, { cursor[1], #newline })
       end)
     end,
   })
