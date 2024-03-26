@@ -7,14 +7,15 @@ https://github.com/haolian9/zongzi/assets/6236829/455472be-e3eb-43dc-9183-ee1cee
 * only supports i_cr
 
 ## known wontfix issues
-* not work with: p, o, O
+* not work with: p, o, O, gw, gq
 * not support multi-line list item
 * `<cr><cr>` will remove the trailing space from the previous line,
   which is caused by &autoindent, actually i'd treat it as a feature
 * `<cr><cr>` will not remove the previously inserted `*` line
 
 ## status
-* just works
+* it works imperfectly, and may malfunction in unaware edge cases
+* edge cases keep making the logic complex more and more, which frustrates me
 * may conflict with other plugins
 
 ## prerequisites
