@@ -7,7 +7,7 @@
 ---* nvim generate bufnr in an auto_increment way, so old bufnr will not be used once it's been wiped out
 ---
 ---known wontfix issues
----* not work with: p, o, O
+---* not work with: p, o, O, gw, gq
 ---* not support multi-line list item
 ---* `<cr><cr>` will remove the trailing space from the previous line,
 ---  which is caused by &autoindent, actually i'd treat it as a feature
@@ -109,7 +109,7 @@ function M.attach(bufnr)
   local tries = { try_unordered, try_ordered, try_ftspec[prefer.bo(bufnr, "filetype")] }
 
   api.nvim_buf_attach(bufnr, false, {
-    on_lines = function(_, _, _, first_line, old_last, new_last)
+    on_lines = function(_, _, tick, first_line, old_last, new_last)
       --[[ sample first_line, old_last, new_last
         yy2p: 4, 4, 6
         d2k:  1, 4, 1
@@ -119,6 +119,7 @@ function M.attach(bufnr)
         O:    2, 2, 3
         yyp:  3, 3, 4
         abcd: 2, 3, 3
+        gw:   2, 3, 4; 3, 4, 5
       --]]
 
       if bufwatcher:is_cancelled(bufnr) then
@@ -132,7 +133,7 @@ function M.attach(bufnr)
 
       --only takes first 64 chars from prevline, which should just be enough
       local prevline = api.nvim_buf_get_text(bufnr, first_line, 0, first_line, 64, {})[1]
-      if is_blank(prevline) then return jelly.debug("prevline is blank") end
+      if is_blank(prevline) then return jelly.debug("cancelled: blank prevline") end
       --todo: check if the current line has been modified by other plugins already
 
       local newline
@@ -143,20 +144,24 @@ function M.attach(bufnr)
           break
         end
       end
-      if newline == nil then return jelly.debug("nothing to do: %s", prevline) end
+      if newline == nil then return jelly.debug("cancelled: all tries failed") end
 
       vim.schedule(function()
+        --could be gw/gq
+        if api.nvim_buf_get_changedtick(bufnr) ~= tick then return jelly.warn("cancelled: buf#%d has changed", bufnr) end
+
         local winid = api.nvim_get_current_win()
-        local cursor = api.nvim_win_get_cursor(winid)
-        assert(new_last == cursor[1])
+        local lnum, col = unpack(api.nvim_win_get_cursor(winid))
+        --could be gw/gq
+        if new_last ~= lnum then return jelly.warn("cancelled: cursor has moved") end
 
         ctx.undoblock(bufnr, function()
-          --for '- a<cr>b', just replace the text before cursor
-          local lnum, col = cursor[1] - 1, cursor[2]
-          api.nvim_buf_set_text(bufnr, lnum, 0, lnum, col, { newline })
+          --for '-- a<cr>b', just replace the text before cursor
+          local row = lnum - 1
+          api.nvim_buf_set_text(bufnr, row, 0, row, col, { newline })
         end)
 
-        api.nvim_win_set_cursor(winid, { cursor[1], #newline })
+        api.nvim_win_set_cursor(winid, { lnum, #newline })
       end)
     end,
   })
