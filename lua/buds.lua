@@ -94,7 +94,7 @@ end
 ---@param str string
 ---@return boolean
 local function is_blank(str)
-  if #str == 0 then return true end
+  if str == "" then return true end
   return string.match(str, "^%s+$") ~= nil
 end
 
