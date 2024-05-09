@@ -21,6 +21,7 @@ local M = {}
 local ctx = require("infra.ctx")
 local jelly = require("infra.jellyfish")("buds", "info")
 local prefer = require("infra.prefer")
+local wincursor = require("infra.wincursor")
 
 local api = vim.api
 
@@ -151,17 +152,16 @@ function M.attach(bufnr)
         if api.nvim_buf_get_changedtick(bufnr) ~= tick then return jelly.warn("cancelled: buf#%d has changed", bufnr) end
 
         local winid = api.nvim_get_current_win()
-        local lnum, col = unpack(api.nvim_win_get_cursor(winid))
+        local cursor = wincursor.position(winid)
         --could be gw/gq
-        if new_last ~= lnum then return jelly.warn("cancelled: cursor has moved") end
+        if new_last ~= cursor.lnum then return jelly.warn("cancelled: cursor has moved") end
 
         ctx.undoblock(bufnr, function()
           --for '-- a<cr>b', just replace the text before cursor
-          local row = lnum - 1
-          api.nvim_buf_set_text(bufnr, row, 0, row, col, { newline })
+          api.nvim_buf_set_text(bufnr, cursor.row, 0, cursor.row, cursor.col, { newline })
         end)
 
-        api.nvim_win_set_cursor(winid, { lnum, #newline })
+        wincursor.go(winid, cursor.lnum, #newline)
       end)
     end,
   })
