@@ -154,11 +154,11 @@ function M.attach(bufnr)
         local winid = api.nvim_get_current_win()
         local cursor = wincursor.position(winid)
         --could be gw/gq
-        if new_last ~= cursor.lnum then return jelly.warn("cancelled: cursor has moved") end
+        if new_last ~= cursor.lnum + 1 then return jelly.warn("cancelled: cursor has moved") end
 
         ctx.undoblock(bufnr, function()
           --for '-- a<cr>b', just replace the text before cursor
-          api.nvim_buf_set_text(bufnr, cursor.row, 0, cursor.row, cursor.col, { newline })
+          api.nvim_buf_set_text(bufnr, cursor.lnum, 0, cursor.lnum, cursor.col, { newline })
         end)
 
         wincursor.go(winid, cursor.lnum, #newline)
