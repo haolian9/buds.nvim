@@ -58,10 +58,10 @@ end
 
 local try_unordered, try_ordered, try_ftspec
 do
-  ---@alias Try fun(prevline: string): nil|string
+  ---@alias buds.Try fun(prevline: string): nil|string
 
   ---for '* ', '- '
-  ---@type Try
+  ---@type buds.Try
   function try_unordered(prevline)
     local prefix = string.match(prevline, "^%s*[*-] ")
     if prefix == nil then return end
@@ -70,7 +70,7 @@ do
   end
 
   ---for '1. '
-  ---@type Try
+  ---@type buds.Try
   function try_ordered(prevline)
     local prefix, no = string.match(prevline, "^(%s*(%d+)%. )")
     if not (prefix and no) then return end
@@ -82,7 +82,7 @@ do
 
   do
     try_ftspec = {}
-    ---@type Try
+    ---@type buds.Try
     function try_ftspec.lua(prevline)
       do --'---* abc', '-- * abc'
         local prefix = string.match(prevline, "^%s*--[ -]%* ")
