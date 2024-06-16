@@ -20,10 +20,9 @@ local M = {}
 
 local ctx = require("infra.ctx")
 local jelly = require("infra.jellyfish")("buds", "info")
+local ni = require("infra.ni")
 local prefer = require("infra.prefer")
 local wincursor = require("infra.wincursor")
-
-local api = vim.api
 
 local bufwatcher = {}
 do
@@ -109,7 +108,7 @@ function M.attach(bufnr)
   --NB: order matters
   local tries = { try_unordered, try_ordered, try_ftspec[prefer.bo(bufnr, "filetype")] }
 
-  api.nvim_buf_attach(bufnr, false, {
+  ni.buf_attach(bufnr, false, {
     on_lines = function(_, _, tick, first_line, old_last, new_last)
       --[[ sample first_line, old_last, new_last
         yy2p: 4, 4, 6
@@ -133,7 +132,7 @@ function M.attach(bufnr)
       assert(new_last ~= 1)
 
       --only takes first 64 chars from prevline, which should just be enough
-      local prevline = api.nvim_buf_get_text(bufnr, first_line, 0, first_line, 64, {})[1]
+      local prevline = ni.buf_get_text(bufnr, first_line, 0, first_line, 64, {})[1]
       if is_blank(prevline) then return jelly.debug("cancelled: blank prevline") end
       --todo: check if the current line has been modified by other plugins already
 
@@ -149,16 +148,16 @@ function M.attach(bufnr)
 
       vim.schedule(function()
         --could be gw/gq
-        if api.nvim_buf_get_changedtick(bufnr) ~= tick then return jelly.warn("cancelled: buf#%d has changed", bufnr) end
+        if ni.buf_get_changedtick(bufnr) ~= tick then return jelly.warn("cancelled: buf#%d has changed", bufnr) end
 
-        local winid = api.nvim_get_current_win()
+        local winid = ni.get_current_win()
         local cursor = wincursor.position(winid)
         --could be gw/gq
         if new_last ~= cursor.lnum + 1 then return jelly.warn("cancelled: cursor has moved") end
 
         ctx.undoblock(bufnr, function()
           --for '-- a<cr>b', just replace the text before cursor
-          api.nvim_buf_set_text(bufnr, cursor.lnum, 0, cursor.lnum, cursor.col, { newline })
+          ni.buf_set_text(bufnr, cursor.lnum, 0, cursor.lnum, cursor.col, { newline })
         end)
 
         wincursor.go(winid, cursor.lnum, #newline)
@@ -169,7 +168,7 @@ end
 
 function M.detach(bufnr)
   assert(bufnr ~= 0)
-  if api.nvim_buf_is_valid(bufnr) then
+  if ni.buf_is_valid(bufnr) then
     bufwatcher:mark_cancelled(bufnr)
   else
     bufwatcher:mark_detached(bufnr)
