@@ -3,7 +3,7 @@ an example to auto add list item
 https://github.com/haolian9/zongzi/assets/6236829/455472be-e3eb-43dc-9183-ee1cee0de083
 
 ## design
-* trigger intentionally
+* trigger manually
 * no nvim_buf_attach, which leads to an unstable fragile impl
 * not support multi-line list item
 
@@ -12,7 +12,7 @@ https://github.com/haolian9/zongzi/assets/6236829/455472be-e3eb-43dc-9183-ee1cee
 * yet may conflict with other plugins
 
 ## prerequisites
-* nvim 0.10.*
+* nvim 0.11.*
 * haolian9/infra.nvim
 
 ## usage
